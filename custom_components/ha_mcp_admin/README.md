@@ -25,6 +25,7 @@
 
 1. Copy `custom_components/ha_mcp_admin` into your Home Assistant config directory under `custom_components`.
 2. Restart Home Assistant.
+3. Go to **Settings > Devices & Services > Add Integration** and search for **HA MCP Admin**.
 
 ## Authentication
 

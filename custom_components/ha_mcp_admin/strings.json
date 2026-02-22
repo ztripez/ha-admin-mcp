@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA MCP Admin",
+        "description": "This will enable the MCP admin server endpoint at `/api/mcp_admin`."
+      }
+    },
+    "abort": {
+      "already_configured": "HA MCP Admin is already configured."
+    }
+  }
+}
