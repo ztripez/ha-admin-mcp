@@ -15,7 +15,7 @@ from homeassistant.helpers.collection import StorageCollection
 
 from . import register_tool
 
-HELPER_DOMAINS = (
+HELPER_DOMAINS = [
     "input_boolean",
     "input_datetime",
     "input_number",
@@ -23,7 +23,7 @@ HELPER_DOMAINS = (
     "input_text",
     "counter",
     "timer",
-)
+]
 
 LIST_HELPERS_SCHEMA = vol.Schema(
     {

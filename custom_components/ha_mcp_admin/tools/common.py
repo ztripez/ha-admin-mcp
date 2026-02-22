@@ -74,7 +74,11 @@ def normalize_data(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, Enum):
         return value.value
-    return value
+    # Handle primitives that are JSON-serializable
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    # Fallback for non-serializable objects (e.g., DiscoveryKey)
+    return str(value)
 
 
 def redact_data(value: Any) -> Any:
@@ -135,7 +139,9 @@ async def async_read_yaml(
     """Read YAML data from Home Assistant config path."""
     path = hass.config.path(relative_path)
     data = await hass.async_add_executor_job(_read_yaml, path, default)
-    if type(data) is not type(default):
+    # Use isinstance() because HA's load_yaml returns NodeListClass/NodeDictClass
+    # which are subclasses of list/dict with YAML metadata
+    if not isinstance(data, type(default)):
         raise HomeAssistantError(
             f"Unexpected data type in {relative_path}: {type(data).__name__}"
         )
