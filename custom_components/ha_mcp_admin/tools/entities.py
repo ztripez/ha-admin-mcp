@@ -11,11 +11,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryDisabler
-from homeassistant.helpers.entity_registry import RegistryEntryDisabler, RegistryEntryHider
-from homeassistant.util import dt as dt_util
-
+from homeassistant.helpers.entity_registry import (
+    RegistryEntryDisabler,
+    RegistryEntryHider,
+)
 from . import register_tool
-from .common import normalize_data
+from .common import normalize_data, pick_kwargs
 
 LIST_ENTITIES_SCHEMA = vol.Schema(
     {
@@ -82,25 +83,11 @@ def _serialize_device(entry: dr.DeviceEntry) -> dict[str, Any]:
     return normalize_data(entry.dict_repr)
 
 
-def _parse_entity_disabler(value: str | None) -> RegistryEntryDisabler | None:
-    """Parse entity disabler string into enum."""
+def _parse_enum(value: str | None, cls: type) -> Any:
+    """Parse an optional string into an enum value, or return None."""
     if value is None:
         return None
-    return RegistryEntryDisabler(value)
-
-
-def _parse_entity_hider(value: str | None) -> RegistryEntryHider | None:
-    """Parse entity hider string into enum."""
-    if value is None:
-        return None
-    return RegistryEntryHider(value)
-
-
-def _parse_device_disabler(value: str | None) -> DeviceEntryDisabler | None:
-    """Parse device disabler string into enum."""
-    if value is None:
-        return None
-    return DeviceEntryDisabler(value)
+    return cls(value)
 
 
 @register_tool(
@@ -108,7 +95,9 @@ def _parse_device_disabler(value: str | None) -> DeviceEntryDisabler | None:
     description="List entity registry entries with optional filters",
     parameters=LIST_ENTITIES_SCHEMA,
 )
-async def list_entities(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def list_entities(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """List entities from the entity registry."""
     registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
@@ -160,24 +149,24 @@ async def get_entity(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str
     description="Update one entity registry entry",
     parameters=UPDATE_ENTITY_SCHEMA,
 )
-async def update_entity(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def update_entity(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Update one entity registry entry."""
     entity_id: str = arguments["entity_id"]
     registry = er.async_get(hass)
     if registry.async_get(entity_id) is None:
         raise HomeAssistantError(f"Entity not found: {entity_id}")
 
-    kwargs: dict[str, Any] = {}
-    for key in ("name", "icon", "area_id", "device_id"):
-        if key in arguments:
-            kwargs[key] = arguments[key]
-
-    if "labels" in arguments:
-        kwargs["labels"] = set(arguments["labels"])
+    kwargs = pick_kwargs(
+        arguments, ("name", "icon", "area_id", "device_id"), ("labels",)
+    )
     if "disabled_by" in arguments:
-        kwargs["disabled_by"] = _parse_entity_disabler(arguments["disabled_by"])
+        kwargs["disabled_by"] = _parse_enum(
+            arguments["disabled_by"], RegistryEntryDisabler
+        )
     if "hidden_by" in arguments:
-        kwargs["hidden_by"] = _parse_entity_hider(arguments["hidden_by"])
+        kwargs["hidden_by"] = _parse_enum(arguments["hidden_by"], RegistryEntryHider)
 
     try:
         updated = registry.async_update_entity(entity_id, **kwargs)
@@ -192,7 +181,9 @@ async def update_entity(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[
     description="Remove one entity from entity registry",
     parameters=REMOVE_ENTITY_SCHEMA,
 )
-async def remove_entity(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def remove_entity(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Remove one entity registry entry."""
     entity_id: str = arguments["entity_id"]
     registry = er.async_get(hass)
@@ -208,7 +199,9 @@ async def remove_entity(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[
     description="List device registry entries with optional filters",
     parameters=LIST_DEVICES_SCHEMA,
 )
-async def list_devices(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def list_devices(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """List devices from the device registry."""
     registry = dr.async_get(hass)
     requested_area_id: str | None = arguments.get("area_id")
@@ -251,30 +244,32 @@ async def get_device(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str
     description="Update one device registry entry",
     parameters=UPDATE_DEVICE_SCHEMA,
 )
-async def update_device(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def update_device(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Update one device registry entry."""
     device_id: str = arguments["device_id"]
     registry = dr.async_get(hass)
     if registry.async_get(device_id) is None:
         raise HomeAssistantError(f"Device not found: {device_id}")
 
-    kwargs: dict[str, Any] = {}
-    for key in (
-        "name",
-        "name_by_user",
-        "area_id",
-        "manufacturer",
-        "model",
-        "sw_version",
-        "hw_version",
-    ):
-        if key in arguments:
-            kwargs[key] = arguments[key]
-
-    if "labels" in arguments:
-        kwargs["labels"] = set(arguments["labels"])
+    kwargs = pick_kwargs(
+        arguments,
+        (
+            "name",
+            "name_by_user",
+            "area_id",
+            "manufacturer",
+            "model",
+            "sw_version",
+            "hw_version",
+        ),
+        ("labels",),
+    )
     if "disabled_by" in arguments:
-        kwargs["disabled_by"] = _parse_device_disabler(arguments["disabled_by"])
+        kwargs["disabled_by"] = _parse_enum(
+            arguments["disabled_by"], DeviceEntryDisabler
+        )
 
     try:
         updated = registry.async_update_device(device_id, **kwargs)
@@ -292,7 +287,9 @@ async def update_device(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[
     description="Remove one device from device registry",
     parameters=REMOVE_DEVICE_SCHEMA,
 )
-async def remove_device(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def remove_device(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Remove one device registry entry."""
     device_id: str = arguments["device_id"]
     registry = dr.async_get(hass)
@@ -300,4 +297,4 @@ async def remove_device(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[
         raise HomeAssistantError(f"Device not found: {device_id}")
 
     registry.async_remove_device(device_id)
-    return {"deleted": device_id, "deleted_at": dt_util.utcnow().isoformat()}
+    return {"deleted": device_id}

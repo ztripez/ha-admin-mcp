@@ -38,7 +38,9 @@ LIST_SERVICES_SCHEMA = vol.Schema(
     description="Call a Home Assistant service",
     parameters=CALL_SERVICE_SCHEMA,
 )
-async def call_service(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def call_service(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Call a Home Assistant service and return response metadata."""
     domain: str = arguments["domain"].lower()
     service: str = arguments["service"].lower()
@@ -67,7 +69,9 @@ async def call_service(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[s
     description="List Home Assistant services by domain",
     parameters=LIST_SERVICES_SCHEMA,
 )
-async def list_services(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def list_services(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """List registered services and optionally schemas."""
     requested_domain: str | None = arguments.get("domain")
     include_schema: bool = arguments["include_schema"]
@@ -85,10 +89,7 @@ async def list_services(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[
             }
 
             if include_schema and service_obj.schema is not None:
-                try:
-                    entry["schema"] = convert(service_obj.schema)
-                except vol.Invalid as err:
-                    entry["schema_error"] = str(err)
+                entry["schema"] = convert(service_obj.schema)
 
             domain_data[service_name] = entry
 

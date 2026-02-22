@@ -33,7 +33,9 @@ When editing automations/scripts/scenes, preserve required fields and IDs.
 """
 
 
-def _format_tool(tool: AdminTool, custom_serializer: Callable[[Any], Any] | None) -> types.Tool:
+def _format_tool(
+    tool: AdminTool, custom_serializer: Callable[[Any], Any] | None
+) -> types.Tool:
     """Convert an internal tool definition into an MCP tool."""
     schema = convert(tool.parameters, custom_serializer=custom_serializer)
     input_schema: dict[str, Any] = {
@@ -54,7 +56,7 @@ async def create_server(hass: HomeAssistant) -> Server:
     """Create a stateless MCP server for admin tools."""
     server = Server[Any]("ha-mcp-admin")
 
-    @server.list_prompts()  # type: ignore[no-untyped-call,untyped-decorator]
+    @server.list_prompts()  # type: ignore[no-untyped-call,untyped-decorator]  # mcp SDK lacks type stubs
     async def handle_list_prompts() -> list[types.Prompt]:
         return [
             types.Prompt(
@@ -63,7 +65,7 @@ async def create_server(hass: HomeAssistant) -> Server:
             )
         ]
 
-    @server.get_prompt()  # type: ignore[no-untyped-call,untyped-decorator]
+    @server.get_prompt()  # type: ignore[no-untyped-call,untyped-decorator]  # mcp SDK lacks type stubs
     async def handle_get_prompt(
         name: str, arguments: dict[str, str] | None
     ) -> types.GetPromptResult:
@@ -80,12 +82,14 @@ async def create_server(hass: HomeAssistant) -> Server:
             ],
         )
 
-    @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]
+    @server.list_tools()  # type: ignore[no-untyped-call,untyped-decorator]  # mcp SDK lacks type stubs
     async def handle_list_tools() -> list[types.Tool]:
         return [_format_tool(tool, None) for tool in get_tools()]
 
-    @server.call_tool()  # type: ignore[untyped-decorator]
-    async def handle_call_tool(name: str, arguments: dict) -> Sequence[types.TextContent]:
+    @server.call_tool()  # type: ignore[untyped-decorator]  # mcp SDK lacks type stubs
+    async def handle_call_tool(
+        name: str, arguments: dict
+    ) -> Sequence[types.TextContent]:
         if (tool := get_tool(name)) is None:
             raise HomeAssistantError(f"Unknown tool: {name}")
 

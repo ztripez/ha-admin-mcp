@@ -8,10 +8,15 @@ import json
 import os
 import sys
 
-from _mcp_client import MCPClientError, MCPHttpClient, extract_tool_json, initialize_mcp
+from _mcp_client import (
+    MCPClientError,
+    MCPHttpClient,
+    PROTOCOL_VERSIONS,
+    extract_tool_json,
+    initialize_mcp,
+)
 
 DEFAULT_TOOL_ARGS = {"include_attributes": False}
-PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 
 
 def run(args: argparse.Namespace) -> int:
@@ -32,11 +37,15 @@ def run(args: argparse.Namespace) -> int:
     tools_response = client.request("tools/list", {})
     tools = tools_response["result"].get("tools", [])
     if not isinstance(tools, list):
-        raise MCPClientError(f"Unexpected tools/list result: {tools_response['result']}")
+        raise MCPClientError(
+            f"Unexpected tools/list result: {tools_response['result']}"
+        )
     print(f"[ok] tools/list count={len(tools)}")
 
     requested_tool = args.tool
-    if requested_tool not in {tool.get("name") for tool in tools if isinstance(tool, dict)}:
+    if requested_tool not in {
+        tool.get("name") for tool in tools if isinstance(tool, dict)
+    }:
         raise MCPClientError(f"Requested tool is not available: {requested_tool}")
 
     tool_args = json.loads(args.tool_args)

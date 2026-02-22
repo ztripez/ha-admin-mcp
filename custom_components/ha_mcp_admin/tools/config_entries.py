@@ -48,7 +48,9 @@ async def list_config_entries(
     description="Get one integration config entry",
     parameters=GET_CONFIG_ENTRY_SCHEMA,
 )
-async def get_config_entry(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def get_config_entry(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Get one config entry by entry_id."""
     entry_id: str = arguments["entry_id"]
     if (entry := hass.config_entries.async_get_entry(entry_id)) is None:
@@ -70,8 +72,9 @@ async def reload_config_entry(
     if hass.config_entries.async_get_entry(entry_id) is None:
         raise HomeAssistantError(f"Config entry not found: {entry_id}")
 
-    success = await hass.config_entries.async_reload(entry_id)
-    return {"entry_id": entry_id, "reloaded": success}
+    if not await hass.config_entries.async_reload(entry_id):
+        raise HomeAssistantError(f"Failed to reload config entry: {entry_id}")
+    return {"entry_id": entry_id, "reloaded": True}
 
 
 @register_tool(

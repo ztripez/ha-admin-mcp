@@ -8,6 +8,9 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+
+
 class MCPClientError(Exception):
     """Raised when the MCP HTTP client encounters an error."""
 
@@ -48,7 +51,9 @@ class MCPHttpClient:
         except URLError as err:
             raise MCPClientError(f"Could not reach MCP endpoint: {err.reason}") from err
 
-    def request(self, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+    def request(
+        self, method: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Send a JSON-RPC request and return parsed response body."""
         request_id = self._next_id
         self._next_id += 1
@@ -109,6 +114,7 @@ def extract_tool_json(result: dict[str, Any]) -> dict[str, Any]:
 
 def initialize_mcp(client: MCPHttpClient, versions: tuple[str, ...]) -> str:
     """Try known protocol versions and return selected version."""
+    last_error: MCPClientError | None = None
     for version in versions:
         try:
             response = client.request(
@@ -125,7 +131,11 @@ def initialize_mcp(client: MCPHttpClient, versions: tuple[str, ...]) -> str:
             result = response["result"]
             if isinstance(result, dict) and result.get("protocolVersion"):
                 return str(result["protocolVersion"])
-        except MCPClientError:
+        except MCPClientError as err:
+            last_error = err
             continue
 
-    raise MCPClientError("Failed to initialize MCP session with known protocol versions")
+    msg = "Failed to initialize MCP session with known protocol versions"
+    if last_error is not None:
+        raise MCPClientError(f"{msg}: {last_error}") from last_error
+    raise MCPClientError(msg)

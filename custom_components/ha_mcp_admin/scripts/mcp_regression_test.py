@@ -11,9 +11,13 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from _mcp_client import MCPClientError, MCPHttpClient, extract_tool_json, initialize_mcp
-
-PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
+from _mcp_client import (
+    MCPClientError,
+    MCPHttpClient,
+    PROTOCOL_VERSIONS,
+    extract_tool_json,
+    initialize_mcp,
+)
 
 
 @dataclass(slots=True)
@@ -107,7 +111,7 @@ class RegressionRunner:
                         f"Missing expected key '{key}' in {tool_name} response"
                     )
             self._record(check_name, "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail(check_name, err)
 
     def run_read_only_suite(self, entity_id: str | None) -> None:
@@ -150,7 +154,9 @@ class RegressionRunner:
             body = self._client.request("prompts/list", {})
             prompts = body["result"].get("prompts", [])
             if not isinstance(prompts, list):
-                raise MCPClientError(f"Unexpected prompts/list response: {body['result']}")
+                raise MCPClientError(
+                    f"Unexpected prompts/list response: {body['result']}"
+                )
             self._record("prompts/list", "ok", f"count={len(prompts)}")
 
             prompt_name = "home-assistant-admin"
@@ -166,7 +172,7 @@ class RegressionRunner:
             if "result" not in body:
                 raise MCPClientError("Missing result in prompts/get response")
             self._record("prompts/get", "ok", f"name={prompt_name}")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail("prompt-suite", err)
 
     def run_destructive_suite(self) -> None:
@@ -204,14 +210,17 @@ class RegressionRunner:
             self._call_tool("delete_label", {"label_id": label_id})
             label_id = None
             self._record("destructive.label", "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail("destructive.label", err)
         finally:
             if label_id is not None:
                 try:
                     self._call_tool("delete_label", {"label_id": label_id})
-                except Exception:  # noqa: BLE001
-                    pass
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for label {label_id}: {err}",
+                        file=sys.stderr,
+                    )
 
     def _test_floor_lifecycle(self, suffix: str) -> None:
         if not {"create_floor", "update_floor", "delete_floor"}.issubset(self._tools):
@@ -228,18 +237,23 @@ class RegressionRunner:
                 },
             )
             floor_id = created["floor"]["floor_id"]
-            self._call_tool("update_floor", {"floor_id": floor_id, "icon": "mdi:stairs"})
+            self._call_tool(
+                "update_floor", {"floor_id": floor_id, "icon": "mdi:stairs"}
+            )
             self._call_tool("delete_floor", {"floor_id": floor_id})
             floor_id = None
             self._record("destructive.floor", "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail("destructive.floor", err)
         finally:
             if floor_id is not None:
                 try:
                     self._call_tool("delete_floor", {"floor_id": floor_id})
-                except Exception:  # noqa: BLE001
-                    pass
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for floor {floor_id}: {err}",
+                        file=sys.stderr,
+                    )
 
     def _test_area_lifecycle(self, suffix: str) -> None:
         if not {"create_area", "update_area", "delete_area"}.issubset(self._tools):
@@ -259,14 +273,17 @@ class RegressionRunner:
             self._call_tool("delete_area", {"area_id": area_id})
             area_id = None
             self._record("destructive.area", "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail("destructive.area", err)
         finally:
             if area_id is not None:
                 try:
                     self._call_tool("delete_area", {"area_id": area_id})
-                except Exception:  # noqa: BLE001
-                    pass
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for area {area_id}: {err}",
+                        file=sys.stderr,
+                    )
 
     def _test_group_lifecycle(self, suffix: str) -> None:
         if not {"create_group", "update_group", "delete_group"}.issubset(self._tools):
@@ -294,14 +311,17 @@ class RegressionRunner:
             self._call_tool("delete_group", {"object_id": object_id})
             deleted = True
             self._record("destructive.group", "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             self._fail("destructive.group", err)
         finally:
             if not deleted:
                 try:
                     self._call_tool("delete_group", {"object_id": object_id})
-                except Exception:  # noqa: BLE001
-                    pass
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for group {object_id}: {err}",
+                        file=sys.stderr,
+                    )
 
     def _test_helper_lifecycle(self, suffix: str) -> None:
         required = {"create_helper", "update_helper", "delete_helper"}
@@ -336,7 +356,7 @@ class RegressionRunner:
             )
             helper_id = None
             self._record("destructive.helper", "ok")
-        except Exception as err:  # noqa: BLE001
+        except MCPClientError as err:
             message = str(err)
             if "unsupported" in message.lower() or "not loaded" in message.lower():
                 self._record("destructive.helper", "skip", message)
@@ -352,8 +372,11 @@ class RegressionRunner:
                             "helper_id": helper_id,
                         },
                     )
-                except Exception:  # noqa: BLE001
-                    pass
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for helper {helper_id}: {err}",
+                        file=sys.stderr,
+                    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -407,8 +430,9 @@ def main() -> int:
         runner.run_read_only_suite(args.entity_id)
         if args.allow_destructive:
             runner.run_destructive_suite()
-    except Exception as err:  # noqa: BLE001
+    except MCPClientError as err:
         print(f"[error] {err}", file=sys.stderr)
+        return 1
 
     passed = sum(result.status == "ok" for result in runner.results)
     failed = sum(result.status == "fail" for result in runner.results)

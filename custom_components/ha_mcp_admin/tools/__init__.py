@@ -62,6 +62,8 @@ def _load_tool_modules() -> None:
         "groups",
         "entities",
         "areas",
+        "floors",
+        "labels",
         "services",
         "states",
         "config_entries",

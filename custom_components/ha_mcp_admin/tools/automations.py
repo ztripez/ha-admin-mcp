@@ -15,47 +15,28 @@ from homeassistant.config import AUTOMATION_CONFIG_PATH
 from homeassistant.const import CONF_ID, SERVICE_RELOAD
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 
 from . import register_tool
-from .common import async_read_yaml, async_write_yaml
+from .common import YAML_CRUD_SCHEMA, async_read_yaml, async_write_yaml, find_list_item
 
 _LOCK = asyncio.Lock()
 
 LIST_AUTOMATIONS_SCHEMA = vol.Schema({})
-GET_AUTOMATION_SCHEMA = vol.Schema({vol.Required("id"): cv.string})
-CREATE_AUTOMATION_SCHEMA = vol.Schema(
-    {
-        vol.Required("id"): cv.string,
-        vol.Required("config"): dict,
-    }
+GET_AUTOMATION_SCHEMA = vol.Schema(
+    {vol.Required("id"): vol.All(str, vol.Length(min=1))}
 )
-UPDATE_AUTOMATION_SCHEMA = vol.Schema(
-    {
-        vol.Required("id"): cv.string,
-        vol.Required("config"): dict,
-    }
-)
-DELETE_AUTOMATION_SCHEMA = vol.Schema({vol.Required("id"): cv.string})
-
-
-def _find_automation(
-    automations: list[dict[str, Any]], automation_id: str
-) -> tuple[int, dict[str, Any]] | None:
-    """Find an automation by its id field."""
-    for index, item in enumerate(automations):
-        if item.get(CONF_ID) == automation_id:
-            return index, item
-    return None
+DELETE_AUTOMATION_SCHEMA = GET_AUTOMATION_SCHEMA
 
 
 async def _load_automations(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Load automation YAML list."""
-    data = await async_read_yaml(hass, AUTOMATION_CONFIG_PATH, [])
-    return data
+    return await async_read_yaml(hass, AUTOMATION_CONFIG_PATH, [])
 
 
-async def _validate(hass: HomeAssistant, automation_id: str, config: dict[str, Any]) -> None:
+async def _validate(
+    hass: HomeAssistant, automation_id: str, config: dict[str, Any]
+) -> None:
     """Validate one automation config payload."""
     if await async_validate_config_item(hass, automation_id, config) is None:
         raise HomeAssistantError("Automation config validation failed")
@@ -76,7 +57,9 @@ async def _reload_automation(hass: HomeAssistant, automation_id: str) -> None:
     description="List all automations from automations.yaml",
     parameters=LIST_AUTOMATIONS_SCHEMA,
 )
-async def list_automations(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def list_automations(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Return all automations."""
     del arguments
     automations = await _load_automations(hass)
@@ -88,12 +71,14 @@ async def list_automations(hass: HomeAssistant, arguments: dict[str, Any]) -> di
     description="Get one automation from automations.yaml by id",
     parameters=GET_AUTOMATION_SCHEMA,
 )
-async def get_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def get_automation(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Return one automation by id."""
     automation_id: str = arguments["id"]
     automations = await _load_automations(hass)
 
-    if (result := _find_automation(automations, automation_id)) is None:
+    if (result := find_list_item(automations, CONF_ID, automation_id)) is None:
         raise HomeAssistantError(f"Automation not found: {automation_id}")
 
     _, automation = result
@@ -103,9 +88,11 @@ async def get_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> dict
 @register_tool(
     name="create_automation",
     description="Create a new automation in automations.yaml",
-    parameters=CREATE_AUTOMATION_SCHEMA,
+    parameters=YAML_CRUD_SCHEMA,
 )
-async def create_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def create_automation(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Create a new automation."""
     automation_id: str = arguments["id"]
     config: dict[str, Any] = {CONF_ID: automation_id, **arguments["config"]}
@@ -114,7 +101,7 @@ async def create_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> d
 
     async with _LOCK:
         automations = await _load_automations(hass)
-        if _find_automation(automations, automation_id) is not None:
+        if find_list_item(automations, CONF_ID, automation_id) is not None:
             raise HomeAssistantError(f"Automation already exists: {automation_id}")
 
         automations.append(config)
@@ -127,9 +114,11 @@ async def create_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> d
 @register_tool(
     name="update_automation",
     description="Update an existing automation in automations.yaml",
-    parameters=UPDATE_AUTOMATION_SCHEMA,
+    parameters=YAML_CRUD_SCHEMA,
 )
-async def update_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def update_automation(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Update an existing automation."""
     automation_id: str = arguments["id"]
     config: dict[str, Any] = {CONF_ID: automation_id, **arguments["config"]}
@@ -138,7 +127,7 @@ async def update_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> d
 
     async with _LOCK:
         automations = await _load_automations(hass)
-        if (result := _find_automation(automations, automation_id)) is None:
+        if (result := find_list_item(automations, CONF_ID, automation_id)) is None:
             raise HomeAssistantError(f"Automation not found: {automation_id}")
 
         index, _ = result
@@ -154,13 +143,15 @@ async def update_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> d
     description="Delete an automation from automations.yaml",
     parameters=DELETE_AUTOMATION_SCHEMA,
 )
-async def delete_automation(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def delete_automation(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Delete an automation by id."""
     automation_id: str = arguments["id"]
 
     async with _LOCK:
         automations = await _load_automations(hass)
-        if (result := _find_automation(automations, automation_id)) is None:
+        if (result := find_list_item(automations, CONF_ID, automation_id)) is None:
             raise HomeAssistantError(f"Automation not found: {automation_id}")
 
         index, removed = result

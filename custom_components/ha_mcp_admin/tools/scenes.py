@@ -13,39 +13,21 @@ from homeassistant.config import SCENE_CONFIG_PATH
 from homeassistant.const import CONF_ID, SERVICE_RELOAD
 from homeassistant.core import DOMAIN as HOMEASSISTANT_DOMAIN, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import entity_registry as er
 
 from . import register_tool
-from .common import async_read_yaml, async_write_yaml
+from .common import YAML_CRUD_SCHEMA, async_read_yaml, async_write_yaml, find_list_item
 
 _LOCK = asyncio.Lock()
 
 LIST_SCENES_SCHEMA = vol.Schema({})
-GET_SCENE_SCHEMA = vol.Schema({vol.Required("id"): cv.string})
-CREATE_SCENE_SCHEMA = vol.Schema(
-    {
-        vol.Required("id"): cv.string,
-        vol.Required("config"): dict,
-    }
-)
-UPDATE_SCENE_SCHEMA = CREATE_SCENE_SCHEMA
-DELETE_SCENE_SCHEMA = vol.Schema({vol.Required("id"): cv.string})
-
-
-def _find_scene(
-    scenes: list[dict[str, Any]], scene_id: str
-) -> tuple[int, dict[str, Any]] | None:
-    """Find a scene by id field."""
-    for index, item in enumerate(scenes):
-        if item.get(CONF_ID) == scene_id:
-            return index, item
-    return None
+GET_SCENE_SCHEMA = vol.Schema({vol.Required("id"): vol.All(str, vol.Length(min=1))})
+DELETE_SCENE_SCHEMA = GET_SCENE_SCHEMA
 
 
 async def _load_scenes(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Load scenes.yaml list."""
-    data = await async_read_yaml(hass, SCENE_CONFIG_PATH, [])
-    return data
+    return await async_read_yaml(hass, SCENE_CONFIG_PATH, [])
 
 
 def _validate_scene_config(config: dict[str, Any]) -> None:
@@ -80,7 +62,7 @@ async def get_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str,
     scene_id: str = arguments["id"]
     scenes = await _load_scenes(hass)
 
-    if (result := _find_scene(scenes, scene_id)) is None:
+    if (result := find_list_item(scenes, CONF_ID, scene_id)) is None:
         raise HomeAssistantError(f"Scene not found: {scene_id}")
 
     _, scene = result
@@ -90,9 +72,11 @@ async def get_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str,
 @register_tool(
     name="create_scene",
     description="Create a new scene in scenes.yaml",
-    parameters=CREATE_SCENE_SCHEMA,
+    parameters=YAML_CRUD_SCHEMA,
 )
-async def create_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def create_scene(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Create a scene."""
     scene_id: str = arguments["id"]
     config: dict[str, Any] = {CONF_ID: scene_id, **arguments["config"]}
@@ -100,7 +84,7 @@ async def create_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[s
 
     async with _LOCK:
         scenes = await _load_scenes(hass)
-        if _find_scene(scenes, scene_id) is not None:
+        if find_list_item(scenes, CONF_ID, scene_id) is not None:
             raise HomeAssistantError(f"Scene already exists: {scene_id}")
 
         scenes.append(config)
@@ -113,9 +97,11 @@ async def create_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[s
 @register_tool(
     name="update_scene",
     description="Update an existing scene in scenes.yaml",
-    parameters=UPDATE_SCENE_SCHEMA,
+    parameters=YAML_CRUD_SCHEMA,
 )
-async def update_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def update_scene(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Update a scene."""
     scene_id: str = arguments["id"]
     config: dict[str, Any] = {CONF_ID: scene_id, **arguments["config"]}
@@ -123,7 +109,7 @@ async def update_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[s
 
     async with _LOCK:
         scenes = await _load_scenes(hass)
-        if (result := _find_scene(scenes, scene_id)) is None:
+        if (result := find_list_item(scenes, CONF_ID, scene_id)) is None:
             raise HomeAssistantError(f"Scene not found: {scene_id}")
 
         index, _ = result
@@ -139,13 +125,15 @@ async def update_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[s
     description="Delete a scene from scenes.yaml",
     parameters=DELETE_SCENE_SCHEMA,
 )
-async def delete_scene(hass: HomeAssistant, arguments: dict[str, Any]) -> dict[str, Any]:
+async def delete_scene(
+    hass: HomeAssistant, arguments: dict[str, Any]
+) -> dict[str, Any]:
     """Delete a scene by ID."""
     scene_id: str = arguments["id"]
 
     async with _LOCK:
         scenes = await _load_scenes(hass)
-        if (result := _find_scene(scenes, scene_id)) is None:
+        if (result := find_list_item(scenes, CONF_ID, scene_id)) is None:
             raise HomeAssistantError(f"Scene not found: {scene_id}")
 
         index, removed = result

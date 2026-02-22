@@ -2,16 +2,54 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import date, datetime
 from enum import Enum
 import os
 from typing import Any
 
+import voluptuous as vol
+
+from homeassistant.helpers import config_validation as cv
+
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.file import write_utf8_file_atomic
 from homeassistant.util.yaml import dump, load_yaml
+
+YAML_CRUD_SCHEMA = vol.Schema(
+    {
+        vol.Required("id"): cv.string,
+        vol.Required("config"): dict,
+    }
+)
+
+
+def find_list_item(
+    items: list[dict[str, Any]], key: str, value: str
+) -> tuple[int, dict[str, Any]] | None:
+    """Find an item in a list of dicts by a key match."""
+    for index, item in enumerate(items):
+        if item.get(key) == value:
+            return index, item
+    return None
+
+
+def pick_kwargs(
+    arguments: dict[str, Any],
+    scalar_keys: tuple[str, ...],
+    set_keys: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Build a kwargs dict from arguments, converting set_keys to sets."""
+    kwargs: dict[str, Any] = {}
+    for key in scalar_keys:
+        if key in arguments:
+            kwargs[key] = arguments[key]
+    for key in set_keys:
+        if key in arguments:
+            kwargs[key] = set(arguments[key])
+    return kwargs
+
 
 SENSITIVE_MARKERS = (
     "access_token",
@@ -71,12 +109,14 @@ def state_to_dict(state: State, *, include_attributes: bool = True) -> dict[str,
     return payload
 
 
-def _read_yaml(path: str, default: dict[str, Any] | list[Any]) -> dict[str, Any] | list[Any]:
+def _read_yaml(
+    path: str, default: dict[str, Any] | list[Any]
+) -> dict[str, Any] | list[Any]:
     """Read a YAML file from disk with a default fallback."""
     if not os.path.isfile(path):
         return default
     data = load_yaml(path)
-    if not data:
+    if data is None:
         return default
     return data
 

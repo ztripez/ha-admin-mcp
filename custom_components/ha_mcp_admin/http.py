@@ -57,14 +57,6 @@ class ModelContextProtocolAdminView(HomeAssistantView):
     url = API_ENDPOINT
 
     @require_admin
-    async def get(self, request: web.Request) -> web.StreamResponse:
-        """Reject unsupported methods."""
-        return web.Response(
-            status=HTTPStatus.METHOD_NOT_ALLOWED,
-            text="Only POST method is supported",
-        )
-
-    @require_admin
     async def post(self, request: web.Request) -> web.StreamResponse:
         """Process JSON-RPC messages over Streamable HTTP."""
         hass = request.app[KEY_HASS]
@@ -84,7 +76,9 @@ class ModelContextProtocolAdminView(HomeAssistantView):
             return web.Response(status=HTTPStatus.ACCEPTED)
 
         server = await create_server(hass)
-        options = await hass.async_add_executor_job(server.create_initialization_options)
+        options = await hass.async_add_executor_job(
+            server.create_initialization_options
+        )
         streams = _create_streams()
 
         async def run_server() -> None:
