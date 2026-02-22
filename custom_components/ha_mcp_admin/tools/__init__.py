@@ -56,6 +56,12 @@ def _load_tool_modules() -> None:
 
     for module_name in (
         "automations",
+        "backups",
+        "config_entries",
+        "diagnostics",
+        "discovery",
+        "history",
+        "mqtt",
         "scripts",
         "scenes",
         "helpers",
@@ -66,7 +72,11 @@ def _load_tool_modules() -> None:
         "labels",
         "services",
         "states",
-        "config_entries",
+        "supervisor",
+        "system",
+        "updates",
+        "zha",
+        "zwave",
     ):
         import_module(f"{__name__}.{module_name}")
 
