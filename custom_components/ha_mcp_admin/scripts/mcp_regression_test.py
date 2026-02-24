@@ -258,6 +258,91 @@ class RegressionRunner:
                 return
             self._fail("tool.list_assist_satellites", err)
 
+    def _run_media_source_read_only_suite(self) -> None:
+        """Run optional read-only checks for media source mapping tools."""
+        self._run_optional_tool_check(
+            "tool.list_media_source_directories",
+            "list_media_source_directories",
+            {},
+            ("directories",),
+        )
+
+        if "map_resources_to_media_sources" not in self._tools:
+            self._record(
+                "tool.map_resources_to_media_sources",
+                "skip",
+                "tool not available: map_resources_to_media_sources",
+            )
+            return
+
+        sample_resource = "/media/local"
+        if "list_media_source_directories" in self._tools:
+            try:
+                directories_payload = self._call_tool(
+                    "list_media_source_directories",
+                    {},
+                )
+                directories = directories_payload.get("directories", [])
+                first_directory = directories[0] if directories else None
+                source_dir_id = (
+                    first_directory.get("source_dir_id")
+                    if isinstance(first_directory, dict)
+                    else None
+                )
+                if isinstance(source_dir_id, str):
+                    sample_resource = f"/media/{source_dir_id}"
+            except MCPClientError as err:
+                if self._is_component_unavailable_error(err):
+                    self._record("tool.list_media_source_directories", "skip", str(err))
+                else:
+                    self._fail("tool.list_media_source_directories", err)
+
+        try:
+            payload = self._call_tool(
+                "map_resources_to_media_sources",
+                {"resources": [sample_resource]},
+            )
+            results = payload.get("results")
+            count = payload.get("count")
+            mapped = payload.get("mapped")
+            unmapped = payload.get("unmapped")
+
+            if not isinstance(results, list):
+                raise MCPClientError(
+                    "Invalid response type for map_resources_to_media_sources.results"
+                )
+            if not all(isinstance(item, dict) for item in results):
+                raise MCPClientError(
+                    "Invalid response items for map_resources_to_media_sources.results"
+                )
+            if (
+                not isinstance(count, int)
+                or not isinstance(mapped, int)
+                or not isinstance(unmapped, int)
+            ):
+                raise MCPClientError(
+                    "Invalid count values for map_resources_to_media_sources"
+                )
+            if count != mapped + unmapped:
+                raise MCPClientError(
+                    "Inconsistent count values for map_resources_to_media_sources"
+                )
+            if len(results) != count:
+                raise MCPClientError(
+                    "Result list length does not match count for map_resources_to_media_sources"
+                )
+            if not any(item.get("mapped") is True for item in results):
+                raise MCPClientError(
+                    "Expected at least one mapped resource in map_resources_to_media_sources"
+                )
+
+            self._record("tool.map_resources_to_media_sources", "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("tool.map_resources_to_media_sources", "skip", str(err))
+                return
+            self._fail("tool.map_resources_to_media_sources", err)
+
     def run_read_only_suite(self, entity_id: str | None) -> None:
         """Run read-only checks across major categories."""
         self._run_tool_check(
@@ -289,6 +374,7 @@ class RegressionRunner:
             ("entries",),
         )
         self._run_voice_read_only_suite()
+        self._run_media_source_read_only_suite()
 
         if entity_id:
             self._run_tool_check(

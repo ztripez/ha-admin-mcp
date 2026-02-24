@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.1] - 2026-02-24
+
+### Added
+- `list_media_source_directories` tool to expose configured media source directory IDs, filesystem paths, and URL/media-source roots.
+- `map_resources_to_media_sources` tool to map `/media/...` URLs, `media-source://...` IDs, absolute paths, file URLs, and relative resources into media-source identifiers.
+
+### Changed
+- Admin server prompt and docs now explicitly include media source resource mapping capabilities.
+
 ## [0.5.0] - 2026-02-24
 
 ### Added

@@ -27,6 +27,7 @@ Use the available tools to manage Home Assistant configuration and runtime:
 - Entity/device/area/floor/label/category registry management
 - Config entry management
 - Assist pipeline and Assist satellite voice setup
+- Media source directory lookup and resource mapping
 - Service calls and state reads
 
 Before destructive actions (delete/remove), verify the target exists.

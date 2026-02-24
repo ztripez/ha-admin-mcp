@@ -71,6 +71,7 @@ def _load_tool_modules() -> None:
         "floors",
         "labels",
         "categories",
+        "media_sources",
         "services",
         "states",
         "voice",

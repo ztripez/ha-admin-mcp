@@ -21,6 +21,7 @@
 - State read tools
 - Config entry listing/reload/delete
 - Assist pipeline and Assist satellite setup tools
+- Media-source directory discovery and resource-to-media-source mapping tools
 
 ## Install
 

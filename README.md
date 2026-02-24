@@ -18,6 +18,7 @@ This component provides MCP tools for complete Home Assistant administration:
 - **States** - Read entity states
 - **Config Entries** - List, reload, and delete integration config entries
 - **Voice Assistants** - Manage Assist pipelines, preferred pipeline selection, Assist satellite wake words, and satellite pipeline assignment
+- **Media Sources** - Map resource paths and URLs into media-source IDs for playback and automation
 
 ## Installation
 
