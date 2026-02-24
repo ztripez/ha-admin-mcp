@@ -16,7 +16,7 @@
 - Helpers CRUD (`input_boolean`, `input_number`, `input_select`, `input_text`, `input_datetime`, `counter`, `timer`)
 - Groups CRUD
 - Entity and device registry tools
-- Area, floor, and label registry tools
+- Area, floor, label, and category registry tools
 - Service call and service listing tools
 - State read tools
 - Config entry listing/reload/delete

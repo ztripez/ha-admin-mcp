@@ -24,7 +24,7 @@ Use the available tools to manage Home Assistant configuration and runtime:
 - Automations, scripts, and scenes CRUD
 - Helper CRUD (input_* helpers, counter, timer)
 - Group CRUD
-- Entity/device/area/floor/label registry management
+- Entity/device/area/floor/label/category registry management
 - Config entry management
 - Service calls and state reads
 

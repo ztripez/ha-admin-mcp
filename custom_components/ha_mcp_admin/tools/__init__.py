@@ -70,6 +70,7 @@ def _load_tool_modules() -> None:
         "areas",
         "floors",
         "labels",
+        "categories",
         "services",
         "states",
         "supervisor",

@@ -136,6 +136,9 @@ class RegressionRunner:
         self._run_tool_check("tool.list_floors", "list_floors", {}, ("floors",))
         self._run_tool_check("tool.list_labels", "list_labels", {}, ("labels",))
         self._run_tool_check(
+            "tool.list_categories", "list_categories", {}, ("categories",)
+        )
+        self._run_tool_check(
             "tool.list_config_entries",
             "list_config_entries",
             {},
@@ -180,6 +183,7 @@ class RegressionRunner:
         suffix = uuid.uuid4().hex[:8]
 
         self._test_label_lifecycle(suffix)
+        self._test_category_lifecycle(suffix)
         self._test_floor_lifecycle(suffix)
         self._test_area_lifecycle(suffix)
         self._test_group_lifecycle(suffix)
@@ -252,6 +256,52 @@ class RegressionRunner:
                 except MCPClientError as err:
                     print(
                         f"[warn] cleanup failed for floor {floor_id}: {err}",
+                        file=sys.stderr,
+                    )
+
+    def _test_category_lifecycle(self, suffix: str) -> None:
+        required = {"create_category", "update_category", "delete_category"}
+        if not required.issubset(self._tools):
+            self._record("destructive.category", "skip", "required tools unavailable")
+            return
+
+        scope = "automation"
+        category_id: str | None = None
+        try:
+            created = self._call_tool(
+                "create_category",
+                {
+                    "scope": scope,
+                    "name": f"mcp_category_{suffix}",
+                },
+            )
+            category_id = created["category"]["category_id"]
+            self._call_tool(
+                "update_category",
+                {
+                    "scope": scope,
+                    "category_id": category_id,
+                    "icon": "mdi:shape",
+                },
+            )
+            self._call_tool(
+                "delete_category",
+                {"scope": scope, "category_id": category_id},
+            )
+            category_id = None
+            self._record("destructive.category", "ok")
+        except MCPClientError as err:
+            self._fail("destructive.category", err)
+        finally:
+            if category_id is not None:
+                try:
+                    self._call_tool(
+                        "delete_category",
+                        {"scope": scope, "category_id": category_id},
+                    )
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for category {category_id}: {err}",
                         file=sys.stderr,
                     )
 

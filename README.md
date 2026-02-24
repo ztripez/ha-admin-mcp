@@ -13,7 +13,7 @@ This component provides MCP tools for complete Home Assistant administration:
 - **Groups** - Create and manage groups
 - **Entity Registry** - List, update, and manage entities
 - **Device Registry** - Access device information
-- **Areas, Floors & Labels** - Manage organization structures
+- **Areas, Floors, Labels & Categories** - Manage organization structures
 - **Services** - List and call Home Assistant services
 - **States** - Read entity states
 - **Config Entries** - List, reload, and delete integration config entries
