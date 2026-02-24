@@ -73,6 +73,7 @@ def _load_tool_modules() -> None:
         "categories",
         "services",
         "states",
+        "voice",
         "supervisor",
         "system",
         "updates",

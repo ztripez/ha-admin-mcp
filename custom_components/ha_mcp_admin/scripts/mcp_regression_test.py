@@ -118,6 +118,146 @@ class RegressionRunner:
         except MCPClientError as err:
             self._fail(check_name, err)
 
+    def _run_optional_tool_check(
+        self,
+        check_name: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        required_keys: tuple[str, ...] = (),
+    ) -> None:
+        """Run one optional tool call and skip for unavailable components."""
+        if tool_name not in self._tools:
+            self._record(check_name, "skip", f"tool not available: {tool_name}")
+            return
+
+        try:
+            payload = self._call_tool(tool_name, arguments)
+            for key in required_keys:
+                if key not in payload:
+                    raise MCPClientError(
+                        f"Missing expected key '{key}' in {tool_name} response"
+                    )
+            self._record(check_name, "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record(check_name, "skip", str(err))
+                return
+            self._fail(check_name, err)
+
+    def _run_voice_read_only_suite(self) -> None:
+        """Run optional read-only checks for voice setup tools."""
+        self._run_optional_tool_check(
+            "tool.get_voice_setup_status",
+            "get_voice_setup_status",
+            {},
+            ("assist_pipeline", "assist_satellite"),
+        )
+        self._run_optional_tool_check(
+            "tool.get_preferred_assist_pipeline",
+            "get_preferred_assist_pipeline",
+            {},
+            ("preferred_pipeline_id", "pipeline"),
+        )
+
+        if "list_assist_pipelines" not in self._tools:
+            self._record(
+                "tool.list_assist_pipelines",
+                "skip",
+                "tool not available: list_assist_pipelines",
+            )
+        else:
+            try:
+                payload = self._call_tool("list_assist_pipelines", {})
+                pipelines = payload.get("pipelines", [])
+                if not isinstance(pipelines, list):
+                    raise MCPClientError(
+                        "Invalid response type for list_assist_pipelines.pipelines"
+                    )
+                self._record("tool.list_assist_pipelines", "ok")
+
+                if "get_assist_pipeline" not in self._tools:
+                    self._record(
+                        "tool.get_assist_pipeline",
+                        "skip",
+                        "tool not available: get_assist_pipeline",
+                    )
+                else:
+                    first_pipeline = pipelines[0] if pipelines else None
+                    pipeline_id = (
+                        first_pipeline.get("id")
+                        if isinstance(first_pipeline, dict)
+                        else None
+                    )
+                    if not isinstance(pipeline_id, str):
+                        self._record(
+                            "tool.get_assist_pipeline",
+                            "skip",
+                            "no pipeline id available for direct lookup",
+                        )
+                    else:
+                        self._run_optional_tool_check(
+                            "tool.get_assist_pipeline",
+                            "get_assist_pipeline",
+                            {"pipeline_id": pipeline_id},
+                            ("pipeline",),
+                        )
+            except MCPClientError as err:
+                if self._is_component_unavailable_error(err):
+                    self._record("tool.list_assist_pipelines", "skip", str(err))
+                else:
+                    self._fail("tool.list_assist_pipelines", err)
+
+        if "list_assist_satellites" not in self._tools:
+            self._record(
+                "tool.list_assist_satellites",
+                "skip",
+                "tool not available: list_assist_satellites",
+            )
+            return
+
+        try:
+            payload = self._call_tool("list_assist_satellites", {})
+            satellites = payload.get("satellites", [])
+            if not isinstance(satellites, list):
+                raise MCPClientError(
+                    "Invalid response type for list_assist_satellites.satellites"
+                )
+            self._record("tool.list_assist_satellites", "ok")
+
+            if "get_assist_satellite_configuration" not in self._tools:
+                self._record(
+                    "tool.get_assist_satellite_configuration",
+                    "skip",
+                    "tool not available: get_assist_satellite_configuration",
+                )
+                return
+
+            first_satellite = satellites[0] if satellites else None
+            satellite_id = (
+                first_satellite.get("entity_id")
+                if isinstance(first_satellite, dict)
+                else None
+            )
+            if not isinstance(satellite_id, str):
+                self._record(
+                    "tool.get_assist_satellite_configuration",
+                    "skip",
+                    "no assist satellite available for config lookup",
+                )
+                return
+
+            self._run_optional_tool_check(
+                "tool.get_assist_satellite_configuration",
+                "get_assist_satellite_configuration",
+                {"entity_id": satellite_id},
+                ("configuration",),
+            )
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("tool.list_assist_satellites", "skip", str(err))
+                return
+            self._fail("tool.list_assist_satellites", err)
+
     def run_read_only_suite(self, entity_id: str | None) -> None:
         """Run read-only checks across major categories."""
         self._run_tool_check(
@@ -148,6 +288,7 @@ class RegressionRunner:
             {},
             ("entries",),
         )
+        self._run_voice_read_only_suite()
 
         if entity_id:
             self._run_tool_check(
@@ -195,6 +336,7 @@ class RegressionRunner:
         self._test_area_lifecycle(suffix)
         self._test_group_lifecycle(suffix)
         self._test_helper_lifecycle(suffix)
+        self._test_assist_pipeline_lifecycle(suffix)
 
     @staticmethod
     def _is_component_unavailable_error(err: MCPClientError) -> bool:
@@ -612,6 +754,121 @@ class RegressionRunner:
                 except MCPClientError as err:
                     print(
                         f"[warn] cleanup failed for helper {helper_id}: {err}",
+                        file=sys.stderr,
+                    )
+
+    def _test_assist_pipeline_lifecycle(self, suffix: str) -> None:
+        required = {
+            "create_assist_pipeline",
+            "update_assist_pipeline",
+            "delete_assist_pipeline",
+        }
+        if not required.issubset(self._tools):
+            self._record(
+                "destructive.assist_pipeline",
+                "skip",
+                "required tools unavailable",
+            )
+            return
+
+        pipeline_id: str | None = None
+        original_preferred_id: str | None = None
+        try:
+            source_pipeline_id: str | None = None
+            if "list_assist_pipelines" in self._tools:
+                list_payload = self._call_tool("list_assist_pipelines", {})
+                pipelines = list_payload.get("pipelines", [])
+                if isinstance(pipelines, list) and pipelines:
+                    first = pipelines[0]
+                    if isinstance(first, dict) and isinstance(first.get("id"), str):
+                        source_pipeline_id = first["id"]
+
+            if "get_preferred_assist_pipeline" in self._tools:
+                preferred_payload = self._call_tool("get_preferred_assist_pipeline", {})
+                preferred_id = preferred_payload.get("preferred_pipeline_id")
+                if isinstance(preferred_id, str):
+                    original_preferred_id = preferred_id
+
+            create_args: dict[str, Any] = {
+                "name": f"MCP Voice Pipeline {suffix}",
+            }
+            if source_pipeline_id is not None:
+                create_args["source_pipeline_id"] = source_pipeline_id
+
+            created = self._call_tool("create_assist_pipeline", create_args)
+            created_pipeline = created.get("pipeline", {})
+            if not isinstance(created_pipeline, dict) or not isinstance(
+                created_pipeline.get("id"), str
+            ):
+                raise MCPClientError(
+                    "Missing pipeline.id in create_assist_pipeline response"
+                )
+
+            pipeline_id = created_pipeline["id"]
+            self._call_tool(
+                "update_assist_pipeline",
+                {
+                    "pipeline_id": pipeline_id,
+                    "name": f"MCP Voice Pipeline Updated {suffix}",
+                },
+            )
+
+            if {
+                "set_preferred_assist_pipeline",
+                "get_preferred_assist_pipeline",
+            }.issubset(self._tools):
+                self._call_tool(
+                    "set_preferred_assist_pipeline",
+                    {"pipeline_id": pipeline_id},
+                )
+                preferred_payload = self._call_tool(
+                    "get_preferred_assist_pipeline",
+                    {},
+                )
+                preferred_id = preferred_payload.get("preferred_pipeline_id")
+                if preferred_id != pipeline_id:
+                    raise MCPClientError(
+                        "Preferred pipeline did not update to created pipeline"
+                    )
+
+                if original_preferred_id is not None:
+                    self._call_tool(
+                        "set_preferred_assist_pipeline",
+                        {"pipeline_id": original_preferred_id},
+                    )
+
+            self._call_tool("delete_assist_pipeline", {"pipeline_id": pipeline_id})
+            pipeline_id = None
+            self._record("destructive.assist_pipeline", "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("destructive.assist_pipeline", "skip", str(err))
+                return
+            self._fail("destructive.assist_pipeline", err)
+        finally:
+            if pipeline_id is not None:
+                if (
+                    original_preferred_id is not None
+                    and "set_preferred_assist_pipeline" in self._tools
+                ):
+                    try:
+                        self._call_tool(
+                            "set_preferred_assist_pipeline",
+                            {"pipeline_id": original_preferred_id},
+                        )
+                    except MCPClientError as err:
+                        print(
+                            f"[warn] failed to restore preferred pipeline {original_preferred_id}: {err}",
+                            file=sys.stderr,
+                        )
+                try:
+                    self._call_tool(
+                        "delete_assist_pipeline",
+                        {"pipeline_id": pipeline_id},
+                    )
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for assist pipeline {pipeline_id}: {err}",
                         file=sys.stderr,
                     )
 

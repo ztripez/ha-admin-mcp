@@ -20,6 +20,7 @@
 - Service call and service listing tools
 - State read tools
 - Config entry listing/reload/delete
+- Assist pipeline and Assist satellite setup tools
 
 ## Install
 

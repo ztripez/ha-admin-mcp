@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.5.0] - 2026-02-24
+
+### Added
+- New voice setup tools for Assist pipeline management: `list_assist_pipelines`, `get_assist_pipeline`, `create_assist_pipeline`, `update_assist_pipeline`, `delete_assist_pipeline`, `get_preferred_assist_pipeline`, and `set_preferred_assist_pipeline`.
+- New Assist satellite setup tools: `list_assist_satellites`, `get_assist_satellite_configuration`, `set_assist_satellite_wake_words`, and `set_assist_satellite_pipeline`.
+- `get_voice_setup_status` one-shot diagnostics tool for voice integration readiness and entity/service coverage.
+
+### Changed
+- Admin server prompt and docs now explicitly include voice assistant setup coverage.
+- Integration manifest version updated to `0.5.0`.
+
 ## [0.4.2] - 2026-02-24
 
 ### Added
