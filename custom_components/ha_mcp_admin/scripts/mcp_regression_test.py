@@ -73,11 +73,15 @@ class RegressionRunner:
         if not isinstance(tools, list):
             raise MCPClientError(f"Unexpected tools/list result: {body['result']}")
 
-        self._tools = {
-            tool.get("name")
-            for tool in tools
-            if isinstance(tool, dict) and isinstance(tool.get("name"), str)
-        }
+        discovered: set[str] = set()
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+            name = tool.get("name")
+            if isinstance(name, str):
+                discovered.add(name)
+
+        self._tools = discovered
         self._record("tools/list", "ok", f"count={len(self._tools)}")
 
     def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -182,12 +186,167 @@ class RegressionRunner:
         """Run destructive create/update/delete lifecycle checks."""
         suffix = uuid.uuid4().hex[:8]
 
+        self._test_automation_lifecycle(suffix)
+        self._test_script_lifecycle(suffix)
+        self._test_scene_lifecycle(suffix)
         self._test_label_lifecycle(suffix)
         self._test_category_lifecycle(suffix)
         self._test_floor_lifecycle(suffix)
         self._test_area_lifecycle(suffix)
         self._test_group_lifecycle(suffix)
         self._test_helper_lifecycle(suffix)
+
+    @staticmethod
+    def _is_component_unavailable_error(err: MCPClientError) -> bool:
+        """Return True when the failure indicates missing integration support."""
+        message = str(err).lower()
+        skip_markers = (
+            "service not found",
+            "not loaded",
+            "component not available",
+            "not setup",
+            "unsupported",
+        )
+        return any(marker in message for marker in skip_markers)
+
+    def _test_automation_lifecycle(self, suffix: str) -> None:
+        required = {"create_automation", "update_automation", "delete_automation"}
+        if not required.issubset(self._tools):
+            self._record("destructive.automation", "skip", "required tools unavailable")
+            return
+
+        automation_id = f"mcp_automation_{suffix}"
+        deleted = False
+        create_config = {
+            "alias": f"MCP Automation {suffix}",
+            "trigger": [{"platform": "homeassistant", "event": "start"}],
+            "action": [{"delay": "00:00:01"}],
+            "mode": "single",
+        }
+        update_config = {
+            "alias": f"MCP Automation Updated {suffix}",
+            "trigger": [{"platform": "homeassistant", "event": "start"}],
+            "action": [{"delay": "00:00:02"}],
+            "mode": "single",
+        }
+
+        try:
+            self._call_tool(
+                "create_automation",
+                {"id": automation_id, "config": create_config},
+            )
+            self._call_tool(
+                "update_automation",
+                {"id": automation_id, "config": update_config},
+            )
+            self._call_tool("delete_automation", {"id": automation_id})
+            deleted = True
+            self._record("destructive.automation", "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("destructive.automation", "skip", str(err))
+                return
+            self._fail("destructive.automation", err)
+        finally:
+            if not deleted:
+                try:
+                    self._call_tool("delete_automation", {"id": automation_id})
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for automation {automation_id}: {err}",
+                        file=sys.stderr,
+                    )
+
+    def _test_script_lifecycle(self, suffix: str) -> None:
+        required = {"create_script", "update_script", "delete_script"}
+        if not required.issubset(self._tools):
+            self._record("destructive.script", "skip", "required tools unavailable")
+            return
+
+        script_id = f"mcp_script_{suffix}"
+        deleted = False
+        create_config = {
+            "alias": f"MCP Script {suffix}",
+            "sequence": [{"delay": "00:00:01"}],
+            "mode": "single",
+        }
+        update_config = {
+            "alias": f"MCP Script Updated {suffix}",
+            "sequence": [{"delay": "00:00:02"}],
+            "mode": "single",
+        }
+
+        try:
+            self._call_tool(
+                "create_script",
+                {"id": script_id, "config": create_config},
+            )
+            self._call_tool(
+                "update_script",
+                {"id": script_id, "config": update_config},
+            )
+            self._call_tool("delete_script", {"id": script_id})
+            deleted = True
+            self._record("destructive.script", "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("destructive.script", "skip", str(err))
+                return
+            self._fail("destructive.script", err)
+        finally:
+            if not deleted:
+                try:
+                    self._call_tool("delete_script", {"id": script_id})
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for script {script_id}: {err}",
+                        file=sys.stderr,
+                    )
+
+    def _test_scene_lifecycle(self, suffix: str) -> None:
+        required = {"create_scene", "update_scene", "delete_scene"}
+        if not required.issubset(self._tools):
+            self._record("destructive.scene", "skip", "required tools unavailable")
+            return
+
+        scene_id = f"mcp_scene_{suffix}"
+        deleted = False
+        create_config = {
+            "name": f"MCP Scene {suffix}",
+            "entities": {"input_boolean.mcp_dummy": "off"},
+        }
+        update_config = {
+            "name": f"MCP Scene Updated {suffix}",
+            "entities": {"input_boolean.mcp_dummy": "on"},
+            "icon": "mdi:palette",
+        }
+
+        try:
+            self._call_tool(
+                "create_scene",
+                {"id": scene_id, "config": create_config},
+            )
+            self._call_tool(
+                "update_scene",
+                {"id": scene_id, "config": update_config},
+            )
+            self._call_tool("delete_scene", {"id": scene_id})
+            deleted = True
+            self._record("destructive.scene", "ok")
+        except MCPClientError as err:
+            if self._is_component_unavailable_error(err):
+                self._record("destructive.scene", "skip", str(err))
+                return
+            self._fail("destructive.scene", err)
+        finally:
+            if not deleted:
+                try:
+                    self._call_tool("delete_scene", {"id": scene_id})
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for scene {scene_id}: {err}",
+                        file=sys.stderr,
+                    )
 
     def _test_label_lifecycle(self, suffix: str) -> None:
         if not {"create_label", "update_label", "delete_label"}.issubset(self._tools):

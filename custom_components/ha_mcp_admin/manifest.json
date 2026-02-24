@@ -7,7 +7,7 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "single_config_entry": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "dependencies": ["http"],
   "requirements": ["mcp==1.26.0", "anyio==4.10.0"]
 }
