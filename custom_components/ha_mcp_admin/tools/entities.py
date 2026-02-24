@@ -39,6 +39,7 @@ UPDATE_ENTITY_SCHEMA = vol.Schema(
         vol.Optional("disabled_by"): vol.Any(None, cv.string),
         vol.Optional("hidden_by"): vol.Any(None, cv.string),
         vol.Optional("labels"): [cv.string],
+        vol.Optional("categories"): vol.Any(None, {cv.string: cv.string}),
     }
 )
 
@@ -161,6 +162,9 @@ async def update_entity(
     kwargs = pick_kwargs(
         arguments, ("name", "icon", "area_id", "device_id"), ("labels",)
     )
+    if "categories" in arguments:
+        categories = arguments["categories"]
+        kwargs["categories"] = {} if categories is None else categories
     if "disabled_by" in arguments:
         kwargs["disabled_by"] = _parse_enum(
             arguments["disabled_by"], RegistryEntryDisabler

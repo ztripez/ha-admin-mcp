@@ -216,6 +216,7 @@ class RegressionRunner:
             return
 
         automation_id = f"mcp_automation_{suffix}"
+        category_id: str | None = None
         deleted = False
         create_config = {
             "alias": f"MCP Automation {suffix}",
@@ -231,14 +232,30 @@ class RegressionRunner:
         }
 
         try:
-            self._call_tool(
-                "create_automation",
-                {"id": automation_id, "config": create_config},
-            )
-            self._call_tool(
-                "update_automation",
-                {"id": automation_id, "config": update_config},
-            )
+            if {"create_category", "delete_category"}.issubset(self._tools):
+                category = self._call_tool(
+                    "create_category",
+                    {
+                        "scope": "automation",
+                        "name": f"mcp_automation_category_{suffix}",
+                    },
+                )
+                category_id = category["category"]["category_id"]
+
+            create_args: dict[str, Any] = {
+                "id": automation_id,
+                "config": create_config,
+            }
+            update_args: dict[str, Any] = {
+                "id": automation_id,
+                "config": update_config,
+            }
+            if category_id is not None:
+                create_args["category_id"] = category_id
+                update_args["category_id"] = category_id
+
+            self._call_tool("create_automation", create_args)
+            self._call_tool("update_automation", update_args)
             self._call_tool("delete_automation", {"id": automation_id})
             deleted = True
             self._record("destructive.automation", "ok")
@@ -254,6 +271,17 @@ class RegressionRunner:
                 except MCPClientError as err:
                     print(
                         f"[warn] cleanup failed for automation {automation_id}: {err}",
+                        file=sys.stderr,
+                    )
+            if category_id is not None:
+                try:
+                    self._call_tool(
+                        "delete_category",
+                        {"scope": "automation", "category_id": category_id},
+                    )
+                except MCPClientError as err:
+                    print(
+                        f"[warn] cleanup failed for category {category_id}: {err}",
                         file=sys.stderr,
                     )
 
