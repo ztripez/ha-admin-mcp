@@ -9,5 +9,5 @@
   "single_config_entry": true,
   "version": "0.5.1",
   "dependencies": ["http"],
-  "requirements": ["mcp==1.26.0", "anyio==4.10.0"]
+  "requirements": ["mcp==1.26.0", "anyio==4.9.0"]
 }

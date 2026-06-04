@@ -160,7 +160,7 @@ python custom_components/ha_mcp_admin/scripts/mcp_regression_test.py \
 ## Dependencies
 
 - `mcp==1.26.0` - Model Context Protocol SDK
-- `anyio==4.10.0` - Async I/O support
+- `anyio==4.9.0` - Async I/O support
 
 ## License
 
